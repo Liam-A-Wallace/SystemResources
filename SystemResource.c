@@ -78,7 +78,7 @@ int main() {
         printf("Disk Usage: ");
         double disk_usage = get_disk_usage("/");
         print_progress_bar(disk_usage);
-        sleep(1);  // Refresh every second
+        sleep(1);  // Refresh every second 
     }
     return 0;
 }
