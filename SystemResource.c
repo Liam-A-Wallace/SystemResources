@@ -3,6 +3,12 @@
 #include <unistd.h>
 #include <sys/sysinfo.h>
 #include <sys/statvfs.h>
+#include <string.h>
+
+typedef struct {
+    unsigned long user, nice, system, idle, iowait, irq, softirq, steal;
+} CPUStats;
+
 // Function to print progress bar with color based on usage
 void print_progress_bar(double usage) {
     int width = 50;  // Width of the progress bar
@@ -28,20 +34,46 @@ void print_progress_bar(double usage) {
 }
 // Function to calculate CPU usage
 double get_cpu_usage() {
+
+    static CPUStats prev_stats = {0};
+    CPUStats curr_stats = {0};
+
     FILE *file = fopen("/proc/stat", "r");
     if (!file) {
         perror("fopen");
         return 0.0;
     }
     char buffer[256];
-    fgets(buffer, sizeof(buffer), file);
+
+    if (fgets(buffer, sizeof(buffer), file)) {
+        sscanf(buffer, "cpu %lu %lu %lu %lu %lu %lu %lu %lu",
+               &curr_stats.user, &curr_stats.nice, &curr_stats.system,
+               &curr_stats.idle, &curr_stats.iowait, &curr_stats.irq,
+               &curr_stats.softirq, &curr_stats.steal);
+    }
     fclose(file);
-    unsigned long user, nice, system, idle;
-    sscanf(buffer, "cpu %lu %lu %lu %lu", &user, &nice, &system, &idle);
-    unsigned long total = user + nice + system + idle;
-    unsigned long used = total - idle;
-    return (double)used / total;
+
+    unsigned long prev_total = prev_stats.user + prev_stats.nice + prev_stats.system +
+                                       prev_stats.idle + prev_stats.iowait +
+                                       prev_stats.irq + prev_stats.softirq + prev_stats.steal;
+    unsigned long curr_total = curr_stats.user + curr_stats.nice + curr_stats.system +
+                                       curr_stats.idle + curr_stats.iowait +
+                                       curr_stats.irq + curr_stats.softirq + curr_stats.steal;
+
+    double usage = 0.0;
+    if (prev_total >0){
+        unsigned long total_diff = curr_total - prev_total;
+        unsigned long idle_diff = curr_stats.idle - prev_stats.idle;
+        unsigned long used_diff = total_diff - idle_diff;
+
+        usage = (double)used_diff / total_diff;
+    }
+    prev_stats = curr_stats;
+    return usage;
+
 }
+
+    
 // Function to calculate memory usage
 double get_memory_usage() {
     struct sysinfo info;
