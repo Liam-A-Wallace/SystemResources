@@ -5,9 +5,19 @@
 #include <sys/statvfs.h>
 #include <string.h>
 
+//CPU breakdown struct
 typedef struct {
     unsigned long user, nice, system, idle, iowait, irq, softirq, steal;
 } CPUStats;
+
+//Memory breakdown struct
+typedef struct {
+    unsigned long total;
+    unsigned long free;
+    unsigned long used;
+    unsigned long cached;
+    unsigned long buffers;
+} MemStats;
 
 // Function to print progress bar with color based on usage
 void print_progress_bar(double usage) {
@@ -132,6 +142,29 @@ double get_memory_usage() {
         return 0.0;
     }
     return (double)(info.totalram - info.freeram) / info.totalram;
+}
+
+void get_detailed_memory_stats(MemStats *mem){
+    FILE *file = fopen("/proc/meminfo", "r");
+    if (!file) {
+        perror("fopen");
+        return;
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "MemTotal:", 9) == 0) {
+            sscanf(line + 9, "%lu", &mem->total);
+        } else if (strncmp(line, "MemFree:", 8) == 0) {
+            sscanf(line + 8, "%lu", &mem->free);
+        } else if (strncmp(line, "Cached:", 7) == 0) {
+            sscanf(line + 7, "%lu", &mem->cached);
+        } else if (strncmp(line, "Buffers:", 8) == 0) {
+            sscanf(line + 8, "%lu", &mem->buffers);
+        }
+    fclose(file);
+    }
+    mem->used = mem->total - mem->free - mem->cached - mem->buffers;
+    
 }
 // Function to calculate disk usage for a given path
 double get_disk_usage(const char *path) {
