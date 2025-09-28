@@ -83,7 +83,7 @@ double get_cpu_usage() {
 
 }
 
-void print_detailed_stats(){
+void print_detailed_cpu_stats(){
     CPUStats curr = {0};
 
     FILE *file = fopen("/proc/stat", "r");
@@ -166,6 +166,42 @@ void get_detailed_memory_stats(MemStats *mem){
     mem->used = mem->total - mem->free - mem->cached - mem->buffers;
     
 }
+
+void print_detailed_memory_stats(){
+    MemStats mem = {0};
+    get_detailed_memory_stats(&mem);
+    if (mem.total>0){
+        printf("Memory Breakdown:\n");
+        // Calculate percentages
+        double used_percent = (double)mem.used / mem.total;
+        double free_percent = (double)mem.free / mem.total;
+        double cached_percent = (double)mem.cached / mem.total;
+        double buffers_percent = (double)mem.buffers / mem.total;
+        
+        double total_gb = mem.total / (1024.0 * 1024.0);
+        double used_gb = mem.used / (1024.0 * 1024.0);
+        double free_gb = mem.free / (1024.0 * 1024.0);
+        double cached_gb = mem.cached / (1024.0 * 1024.0);
+        double buffers_gb = mem.buffers / (1024.0 * 1024.0);
+        
+        // Print with progress bars
+        printf("  Used:   ");
+        print_progress_bar(used_percent);
+        printf(" (%.1f/%.1f GB)\n", used_gb, total_gb);
+        
+        printf("  Free:   ");
+        print_progress_bar(free_percent);
+        printf(" (%.1f GB)\n", free_gb);
+        
+        printf("  Cached: ");
+        print_progress_bar(cached_percent);
+        printf(" (%.1f GB)\n", cached_gb);
+        
+        printf("  Buffers:");
+        print_progress_bar(buffers_percent);
+        printf(" (%.1f GB)\n", buffers_gb);
+    }
+
 // Function to calculate disk usage for a given path
 double get_disk_usage(const char *path) {
     struct statvfs buf;
@@ -186,12 +222,17 @@ int main() {
         double cpu_usage = get_cpu_usage();
         print_progress_bar(cpu_usage);
         //CPU breakdown
-        print_detailed_stats();
+        print_detailed_cpu_stats();
+        printf("\n");
 
         // Memory usage
         printf("Memory Usage: ");
         double memory_usage = get_memory_usage();
         print_progress_bar(memory_usage);
+        //Memory breakdown
+        print_detailed_memory_stats();
+        printf("\n");
+
         // Disk usage
         printf("Disk Usage: ");
         double disk_usage = get_disk_usage("/");
