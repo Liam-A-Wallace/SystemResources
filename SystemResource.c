@@ -94,12 +94,32 @@ void print_detailed_stats(){
                           curr.irq + curr.softirq + curr.steal;
     if (total>0){
         printf("CPU Breakdown:\n");
-        printf("  User:   %.1f%%  Nice:   %.1f%%\n", 
-               (double)curr.user / total * 100, (double)curr.nice / total * 100);
-        printf("  System: %.1f%%  Idle:   %.1f%%\n", 
-               (double)curr.system / total * 100, (double)curr.idle / total * 100);
-        printf("  IOWait: %.1f%%  IRQ:    %.1f%%\n", 
-               (double)curr.iowait / total * 100, (double)curr.irq / total * 100);
+        // Calculate percentages
+        double user_percent = (double)curr.user / total;
+        double nice_percent = (double)curr.nice / total;
+        double system_percent = (double)curr.system / total;
+        double idle_percent = (double)curr.idle / total;
+        double iowait_percent = (double)curr.iowait / total;
+        double irq_percent = (double)curr.irq / total;
+        
+        // Print with progress bars - using shorter labels for alignment
+        printf("  User:   ");
+        print_progress_bar(user_percent);
+        
+        printf("  Nice:   ");
+        print_progress_bar(nice_percent);
+        
+        printf("  System: ");
+        print_progress_bar(system_percent);
+        
+        printf("  Idle:   ");
+        print_progress_bar(idle_percent);
+        
+        printf("  IOWait: ");
+        print_progress_bar(iowait_percent);
+        
+        printf("  IRQ:    ");
+        print_progress_bar(irq_percent);
     }
 }
 
@@ -132,6 +152,9 @@ int main() {
         printf("CPU Usage: ");
         double cpu_usage = get_cpu_usage();
         print_progress_bar(cpu_usage);
+        //CPU breakdown
+        print_detailed_stats();
+
         // Memory usage
         printf("Memory Usage: ");
         double memory_usage = get_memory_usage();
