@@ -73,6 +73,36 @@ double get_cpu_usage() {
 
 }
 
+void print_detailed_stats(){
+    CPUStats curr = {0};
+
+    FILE *file = fopen("/proc/stat", "r");
+    if (!file) {
+        perror("fopen");
+        return;}
+    
+    char buffer[256];
+    if (fgets(buffer, sizeof(buffer), file)) {
+        sscanf(buffer, "cpu %lu %lu %lu %lu %lu %lu %lu %lu",
+               &curr.user, &curr.nice, &curr.system,
+               &curr.idle, &curr.iowait, &curr.irq,
+               &curr.softirq, &curr.steal);
+    }
+    fclose(file);
+    unsigned long total = curr.user + curr.nice + curr.system +
+                          curr.idle + curr.iowait +
+                          curr.irq + curr.softirq + curr.steal;
+    if (total>0){
+        printf("CPU Breakdown:\n");
+        printf("  User:   %.1f%%  Nice:   %.1f%%\n", 
+               (double)curr.user / total * 100, (double)curr.nice / total * 100);
+        printf("  System: %.1f%%  Idle:   %.1f%%\n", 
+               (double)curr.system / total * 100, (double)curr.idle / total * 100);
+        printf("  IOWait: %.1f%%  IRQ:    %.1f%%\n", 
+               (double)curr.iowait / total * 100, (double)curr.irq / total * 100);
+    }
+}
+
     
 // Function to calculate memory usage
 double get_memory_usage() {
