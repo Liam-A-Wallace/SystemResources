@@ -150,21 +150,39 @@ void get_detailed_memory_stats(MemStats *mem){
         perror("fopen");
         return;
     }
+    
     char line[256];
+    int found_total = 0, found_free = 0, found_cached = 0, found_buffers = 0;
+    
     while (fgets(line, sizeof(line), file)) {
         if (strncmp(line, "MemTotal:", 9) == 0) {
             sscanf(line + 9, "%lu", &mem->total);
+            found_total = 1;
         } else if (strncmp(line, "MemFree:", 8) == 0) {
             sscanf(line + 8, "%lu", &mem->free);
+            found_free = 1;
         } else if (strncmp(line, "Cached:", 7) == 0) {
             sscanf(line + 7, "%lu", &mem->cached);
+            found_cached = 1;
         } else if (strncmp(line, "Buffers:", 8) == 0) {
             sscanf(line + 8, "%lu", &mem->buffers);
+            found_buffers = 1;
         }
-    fclose(file);
+        
+        // If we found all values, we can break early
+        if (found_total && found_free && found_cached && found_buffers) {
+            break;
+        }
     }
-    mem->used = mem->total - mem->free - mem->cached - mem->buffers;
+    fclose(file);
     
+    // Only calculate used if we have all required values
+    if (found_total && found_free && found_cached && found_buffers) {
+        mem->used = mem->total - mem->free - mem->cached - mem->buffers;
+    } else {
+        // Set to 0 if we couldn't read all values
+        mem->used = 0;
+    }
 }
 
 void print_detailed_memory_stats(){
@@ -201,7 +219,7 @@ void print_detailed_memory_stats(){
         print_progress_bar(buffers_percent);
         printf(" (%.1f GB)\n", buffers_gb);
     }
-
+}
 // Function to calculate disk usage for a given path
 double get_disk_usage(const char *path) {
     struct statvfs buf;
