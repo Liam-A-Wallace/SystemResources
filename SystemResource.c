@@ -4,6 +4,7 @@
 #include <sys/sysinfo.h>
 #include <sys/statvfs.h>
 #include <string.h>
+#include <sys/select.h>
 
 //CPU breakdown struct
 typedef struct {
@@ -18,6 +19,16 @@ typedef struct {
     unsigned long cached;
     unsigned long buffers;
 } MemStats;
+
+typedef struct {
+    int simple_mode; // Simple mode flag shows only main usage bars
+    int show_cpu_details; // Show CPU stats with or without Detailed breakdown
+    int show_memory_details; // Show Memory stats with or without Detailed breakdown
+    int show_disk_details; // Show Disk usage
+} DisplayFlags;
+
+//Global display flags
+DisplayFlags display_flags = {1,1,1,1}; // Default to simple mode with all details
 
 // Function to print progress bar with color based on usage
 void print_progress_bar(double usage) {
@@ -42,6 +53,38 @@ void print_progress_bar(double usage) {
     }
     printf("]\033[0m %.2f%%\n", usage * 100);  // Reset color
 }
+
+int input_available(){
+    struct timeval tv = {0, 0}; // timeout of 0 seconds
+    fd_set fds; // set of file descriptors to check
+
+    FD_ZERO(&fds); // clear the set
+    FD_SET(STDIN_FILENO, &fds); // add stdin (file descriptor 0) to the set
+
+    // Check if input is available
+    return select(1, &fds, NULL, NULL, &tv) > 0;
+}
+
+
+void handle_input(){
+    if (input_available()){
+        char c = getchar();
+        switch (c)
+        {
+        case 's':
+        case 'S':
+            /* code */
+            break;
+        
+        case 'q':
+        case 'Q':
+            printf("Exiting...\n");
+            exit(0);
+            break;
+        }
+    }
+}
+
 // Function to calculate CPU usage
 double get_cpu_usage() {
 
