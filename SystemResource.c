@@ -233,7 +233,7 @@ double get_disk_usage(const char *path) {
 }
 int main() {
     while (1) {
-        printf("\033[H\033[J");  // Clear the screen and move the cursor to the top
+        system("clear");  // Clear the screen and move the cursor to the top
         printf("--- System Performance Monitor ---\n");
         // CPU usage
         printf("CPU Usage: ");
