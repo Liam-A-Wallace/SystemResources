@@ -22,10 +22,10 @@ typedef struct {
 
 typedef struct {
     char interface[16];
-    unsigned long rx_bytes;      // Received bytes
-    unsigned long tx_bytes;      // Transmitted bytes
-    unsigned long rx_bytes_prev; // Previous reading for rate calculation
-    unsigned long tx_bytes_prev; // Previous reading for rate calculation
+    unsigned long long rx_bytes;      // Received bytes
+    unsigned long long tx_bytes;      // Transmitted bytes
+    unsigned long long rx_bytes_prev; // Previous reading for rate calculation
+    unsigned long long tx_bytes_prev; // Previous reading for rate calculation
     double rx_rate;              // Receive rate in KB/s
     double tx_rate;              // Transmit rate in KB/s
 } NetworkStats;
@@ -248,11 +248,11 @@ void get_network_stats(NetworkStats *stats, int *count) {
     
     while (fgets(line, sizeof(line), file) && i < *count) {
         char interface[16];
-        unsigned long rx_bytes, tx_bytes;
+        unsigned long long rx_bytes, tx_bytes;
         
         // Parse the network statistics line
         // Format: interface: rx_bytes rx_packets rx_errors rx_drop ... tx_bytes tx_packets ...
-        if (sscanf(line, " %15[^:]: %lu %*u %*u %*u %*u %*u %*u %*u %lu",
+        if (sscanf(line, " %15[^:]: %llu %*u %*u %*u %*u %*u %*u %*u %llu",
                    interface, &rx_bytes, &tx_bytes) >= 2) {
             // Remove trailing colon from interface name
             char *colon = strchr(interface, ':');
@@ -289,6 +289,10 @@ void calculate_network_rates(NetworkStats *stats, int count) {
     for (int i = 0; i < count; i++) {
         unsigned long rx_diff = stats[i].rx_bytes - stats[i].rx_bytes_prev;
         unsigned long tx_diff = stats[i].tx_bytes - stats[i].tx_bytes_prev;
+
+        // Handle counter reset or wrap-around
+        if (rx_diff < 0) rx_diff = 0;
+        if (tx_diff < 0) tx_diff = 0;
         
         // Convert to KB/s (assuming 200ms refresh rate)
         stats[i].rx_rate = rx_diff / 1024.0 / 0.2;  // KB per second
@@ -301,33 +305,31 @@ void calculate_network_rates(NetworkStats *stats, int count) {
 }
 
 void print_network_stats() {
-    NetworkStats stats[8];  // Support up to 8 interfaces
+    static NetworkStats stats[8];  // Support up to 8 interfaces
     int count = 8;
     
     get_network_stats(stats, &count);
     calculate_network_rates(stats, count);
-    
+
     if (count > 0) {
         printf("Network:\n");
-        for (int i = 0; i < count; i++) {
-            // Only show interfaces with recent activity to reduce clutter
-            if (stats[i].rx_rate > 0.1 || stats[i].tx_rate > 0.1) {
-                printf("  %s:\n", stats[i].interface);
-                printf("    RX: %6.1f KB/s | TX: %6.1f KB/s\n", 
-                       stats[i].rx_rate, stats[i].tx_rate);
-            }
-        }
-        
-        // Show total across all interfaces
-        double total_rx = 0, total_tx = 0;
+
+        double total_rx = 0.0, total_tx = 0.0;
         for (int i = 0; i < count; i++) {
             total_rx += stats[i].rx_rate;
             total_tx += stats[i].tx_rate;
+
+            // Display only active or recently used interfaces
+            if (stats[i].rx_rate > 0.1 || stats[i].tx_rate > 0.1) {
+                printf("  %s:\n", stats[i].interface);
+                printf("    RX: %10.2f KB/s | TX: %10.2f KB/s\n",
+                       stats[i].rx_rate, stats[i].tx_rate);
+            }
         }
-        printf("  Total: RX: %6.1f KB/s | TX: %6.1f KB/s\n", total_rx, total_tx);
+
+        printf("  Total: RX: %10.2f KB/s | TX: %10.2f KB/s\n", total_rx, total_tx);
     }
 }
-
     
 // Function to calculate memory usage
 double get_memory_usage() {
@@ -479,8 +481,7 @@ int main() {
         // Show controls
         print_controls();
         
-        // Small delay
-        usleep(200000);  
+        usleep(1000000);  // refresh every 1 second
     }
     return 0;
 }
