@@ -21,14 +21,25 @@ typedef struct {
 } MemStats;
 
 typedef struct {
+    char interface[16];
+    unsigned long rx_bytes;      // Received bytes
+    unsigned long tx_bytes;      // Transmitted bytes
+    unsigned long rx_bytes_prev; // Previous reading for rate calculation
+    unsigned long tx_bytes_prev; // Previous reading for rate calculation
+    double rx_rate;              // Receive rate in KB/s
+    double tx_rate;              // Transmit rate in KB/s
+} NetworkStats;
+
+typedef struct {
     int simple_mode; // Simple mode flag shows only main usage bars
     int show_cpu_details; // Show CPU stats with or without Detailed breakdown
     int show_memory_details; // Show Memory stats with or without Detailed breakdown
     int show_disk_details; // Show Disk usage
+    int show_network; // Show network stats
 } DisplayFlags;
 
 //Global display flags
-DisplayFlags display_flags = {1,1,1,1}; // Default to simple mode with all details
+DisplayFlags display_flags = {1,1,1,1,1}; // Default to simple mode with all details
 
 // Function to print progress bar with color based on usage
 void print_progress_bar(double usage) {
@@ -104,6 +115,11 @@ void handle_input() {
                 // Toggle disk display
                 display_flags.show_disk_details = !display_flags.show_disk_details;
                 break;
+            case 'n':
+            case 'N':
+                // Toggle network display
+                display_flags.show_network = !display_flags.show_network;
+                break;
             case 'q':
             case 'Q':
                 printf("\nExiting system monitor...\n");
@@ -121,6 +137,7 @@ void print_controls() {
         printf("M[%s] ", display_flags.show_memory_details ? "ON" : "OFF");
     }
     printf("D[%s] ", display_flags.show_disk_details ? "ON" : "OFF");
+    printf("N[%s] ", display_flags.show_network ? "ON" : "OFF");
     printf("Q(quit)\n");
 }
 
@@ -212,6 +229,102 @@ void print_detailed_cpu_stats(){
         
         printf("  IRQ:    ");
         print_progress_bar(irq_percent);
+    }
+}
+
+// Network monitoring functions
+void get_network_stats(NetworkStats *stats, int *count) {
+    FILE *file = fopen("/proc/net/dev", "r");
+    if (!file) {
+        perror("fopen");
+        return;
+    }
+    
+    char line[256];
+    int i = 0;
+    // Skip first two lines (header)
+    fgets(line, sizeof(line), file);
+    fgets(line, sizeof(line), file);
+    
+    while (fgets(line, sizeof(line), file) && i < *count) {
+        char interface[16];
+        unsigned long rx_bytes, tx_bytes;
+        
+        // Parse the network statistics line
+        // Format: interface: rx_bytes rx_packets rx_errors rx_drop ... tx_bytes tx_packets ...
+        if (sscanf(line, " %15[^:]: %lu %*u %*u %*u %*u %*u %*u %*u %lu",
+                   interface, &rx_bytes, &tx_bytes) >= 2) {
+            // Remove trailing colon from interface name
+            char *colon = strchr(interface, ':');
+            if (colon) *colon = '\0';
+            
+            // Skip loopback interface
+            if (strcmp(interface, "lo") != 0) {
+                strcpy(stats[i].interface, interface);
+                stats[i].rx_bytes = rx_bytes;
+                stats[i].tx_bytes = tx_bytes;
+                i++;
+            }
+        }
+    }
+    *count = i;
+    fclose(file);
+}
+
+void calculate_network_rates(NetworkStats *stats, int count) {
+    static int first_run = 1;
+    if (first_run) {
+        // First run, just store current values
+        for (int i = 0; i < count; i++) {
+            stats[i].rx_bytes_prev = stats[i].rx_bytes;
+            stats[i].tx_bytes_prev = stats[i].tx_bytes;
+            stats[i].rx_rate = 0.0;
+            stats[i].tx_rate = 0.0;
+        }
+        first_run = 0;
+        return;
+    }
+    
+    // Calculate rates based on difference from previous reading
+    for (int i = 0; i < count; i++) {
+        unsigned long rx_diff = stats[i].rx_bytes - stats[i].rx_bytes_prev;
+        unsigned long tx_diff = stats[i].tx_bytes - stats[i].tx_bytes_prev;
+        
+        // Convert to KB/s (assuming 200ms refresh rate)
+        stats[i].rx_rate = rx_diff / 1024.0 / 0.2;  // KB per second
+        stats[i].tx_rate = tx_diff / 1024.0 / 0.2;  // KB per second
+        
+        // Store current values for next calculation
+        stats[i].rx_bytes_prev = stats[i].rx_bytes;
+        stats[i].tx_bytes_prev = stats[i].tx_bytes;
+    }
+}
+
+void print_network_stats() {
+    NetworkStats stats[8];  // Support up to 8 interfaces
+    int count = 8;
+    
+    get_network_stats(stats, &count);
+    calculate_network_rates(stats, count);
+    
+    if (count > 0) {
+        printf("Network:\n");
+        for (int i = 0; i < count; i++) {
+            // Only show interfaces with recent activity to reduce clutter
+            if (stats[i].rx_rate > 0.1 || stats[i].tx_rate > 0.1) {
+                printf("  %s:\n", stats[i].interface);
+                printf("    RX: %6.1f KB/s | TX: %6.1f KB/s\n", 
+                       stats[i].rx_rate, stats[i].tx_rate);
+            }
+        }
+        
+        // Show total across all interfaces
+        double total_rx = 0, total_tx = 0;
+        for (int i = 0; i < count; i++) {
+            total_rx += stats[i].rx_rate;
+            total_tx += stats[i].tx_rate;
+        }
+        printf("  Total: RX: %6.1f KB/s | TX: %6.1f KB/s\n", total_rx, total_tx);
     }
 }
 
@@ -315,7 +428,7 @@ double get_disk_usage(const char *path) {
 }
 int main() {
     printf("Starting System Monitor...\n");
-    printf("Controls: S(toggle simple/advanced) C(toggle CPU) M(toggle Memory) D(toggle Disk) Q(quit)\n");
+    printf("Controls: S(toggle simple/advanced) C(toggle CPU) M(toggle Memory) D(toggle Disk) N(toggle Network) Q(quit)\n");
     sleep(2);  // Show instructions briefly
 
     while (1) {
@@ -356,6 +469,11 @@ int main() {
             printf("\nDisk Usage: ");
             double disk_usage = get_disk_usage("/");
             print_progress_bar(disk_usage);
+        }
+
+        if (display_flags.show_network) {
+            printf("\n");
+            print_network_stats();
         }
         
         // Show controls
