@@ -66,23 +66,62 @@ int input_available(){
 }
 
 
-void handle_input(){
-    if (input_available()){
+// Handle keyboard input
+void handle_input() {
+    if (input_available()) {
         char c = getchar();
-        switch (c)
-        {
-        case 's':
-        case 'S':
-            /* code */
-            break;
-        
-        case 'q':
-        case 'Q':
-            printf("Exiting...\n");
-            exit(0);
-            break;
+        switch (c) {
+            case 's':
+            case 'S':
+                // Toggle simple/advanced mode
+                display_flags.simple_mode = !display_flags.simple_mode;
+                if (display_flags.simple_mode) {
+                    // In simple mode, hide all details
+                    display_flags.show_cpu_details = 0;
+                    display_flags.show_memory_details = 0;
+                } else {
+                    // In advanced mode, show all details
+                    display_flags.show_cpu_details = 1;
+                    display_flags.show_memory_details = 1;
+                }
+                break;
+            case 'c':
+            case 'C':
+                // Toggle CPU details (only in advanced mode)
+                if (!display_flags.simple_mode) {
+                    display_flags.show_cpu_details = !display_flags.show_cpu_details;
+                }
+                break;
+            case 'm':
+            case 'M':
+                // Toggle memory details (only in advanced mode)
+                if (!display_flags.simple_mode) {
+                    display_flags.show_memory_details = !display_flags.show_memory_details;
+                }
+                break;
+            case 'd':
+            case 'D':
+                // Toggle disk display
+                display_flags.show_disk_details = !display_flags.show_disk_details;
+                break;
+            case 'q':
+            case 'Q':
+                printf("\nExiting system monitor...\n");
+                exit(0);
+                break;
         }
     }
+}
+
+void print_controls() {
+    printf("\nControls: ");
+    printf("S(mode:%s) ", display_flags.simple_mode ? "SIMPLE" : "ADVANCED");
+    if (!display_flags.simple_mode) {
+        printf("C[%s] ", display_flags.show_cpu_details ? "ON" : "OFF");
+        printf("M[%s] ", display_flags.show_memory_details ? "ON" : "OFF");
+    }
+    printf("D[%s] ", display_flags.show_disk_details ? "ON" : "OFF");
+    printf("Q(quit)\n");
 }
 
 // Function to calculate CPU usage
@@ -275,30 +314,55 @@ double get_disk_usage(const char *path) {
     return (double)used / total;
 }
 int main() {
+    printf("Starting System Monitor...\n");
+    printf("Controls: S(toggle simple/advanced) C(toggle CPU) M(toggle Memory) D(toggle Disk) Q(quit)\n");
+    sleep(2);  // Show instructions briefly
+
     while (1) {
-        system("clear");  // Clear the screen and move the cursor to the top
-        printf("--- System Performance Monitor ---\n");
-        // CPU usage
+        system("clear");
+        
+        // Show current mode in header
+        if (display_flags.simple_mode) {
+            printf("--- System Monitor (SIMPLE MODE) ---\n");
+        } else {
+            printf("--- System Monitor (ADVANCED MODE) ---\n");
+        }
+        
+        // Check for user input
+        handle_input();
+        
+        // Always show CPU usage
         printf("CPU Usage: ");
         double cpu_usage = get_cpu_usage();
         print_progress_bar(cpu_usage);
-        //CPU breakdown
-        print_detailed_cpu_stats();
-        printf("\n");
-
-        // Memory usage
-        printf("Memory Usage: ");
+        
+        // Show CPU details only in advanced mode and if enabled
+        if (!display_flags.simple_mode && display_flags.show_cpu_details) {
+            print_detailed_cpu_stats();
+        }
+        
+        // Always show memory usage  
+        printf("\nMemory Usage: ");
         double memory_usage = get_memory_usage();
         print_progress_bar(memory_usage);
-        //Memory breakdown
-        print_detailed_memory_stats();
-        printf("\n");
-
-        // Disk usage
-        printf("Disk Usage: ");
-        double disk_usage = get_disk_usage("/");
-        print_progress_bar(disk_usage);
-        sleep(1);  // Refresh every second 
+        
+        // Show memory details only in advanced mode and if enabled
+        if (!display_flags.simple_mode && display_flags.show_memory_details) {
+            print_detailed_memory_stats();
+        }
+        
+        // Show disk only if enabled
+        if (display_flags.show_disk_details) {
+            printf("\nDisk Usage: ");
+            double disk_usage = get_disk_usage("/");
+            print_progress_bar(disk_usage);
+        }
+        
+        // Show controls
+        print_controls();
+        
+        // Small delay
+        usleep(200000);  
     }
     return 0;
 }
